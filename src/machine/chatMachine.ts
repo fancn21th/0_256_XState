@@ -90,6 +90,7 @@ export const chatMachine = setup({
     }),
   },
 }).createMachine({
+  /** @xstate-layout N4IgpgJg5mDOIC5QGMAWBDALgWXWglgHZgDEASgKIDKFAKgPoDCAEgIK0DaADALqKgAHAPax8mfEML8QAD0QBGeQE4AdAFYATAHYAzGq1cuagCwAOeVo0AaEAE9EGgGxaVzx46U7PSpabVdHAF9AmzQsXAJiFUIhTCpMdAAnTEgSKlpWMgYWdm4+JBBhUXFJaTkEHT0VQ0MNLm13Yw1jHRt7BEc6lT1THS0lJqaNeR1g0IwcPFQiMGjY+KSUiBIZWASUlXQAMxTEgAp-LgBKEjDJyNmYuITkyDzpIrEJKQLyyrVqmrqGx0HWu0Q+g0Kj8pmMXGM8jBZi4oxCIDOEWmUTO4kIUBUmFsAiIUBIAEkAHIABQAqtk2ISAOIUe4FR4lF6gcrGNTybrGZw6RwQtSeNRqNqISHGdQjepaUy-RygsYIiZImYqVG4zHY3FpUkAIWw+M4vAeIiepVeiFMphcalMTjUen0ph8QoQGl6ri4I0svw0XiUGjliKmSpV6JUa0W8USYHQAFsNelKKxsPQACIUAAyGTpgiNjLKZttYs6anc8jZMscTuMSnZ-iU9QsWgFyi0-oVgZREzRGLDyQjUdj6LStATSYoZDIAHkyFnCjnnnmEFKPpL7Ro+TzffInTzRWYNPvlO7TK3wu3ZsHuzdrpGY3HhxREymJ4TaQb6XOTcyzR4VC1YfJmg8AwBSdLR5EcVwvGlQxdH-YJ4RiCA4GkAMLkNYp51NBAlG3UV5HdPpS0qRwdCcYwT3OZFLnmK9IHQ40mVkQEtCdYsdF-SEwIFTQRi8CjFQ7LAu3o3MsPBdidE5XQdz5O0nVLdkeQ9W0XW5Hk4XGU8LmVTtVSxHF0REzCvw6Pp1G9HQuF9fcfBaJ0NCUFxTF5CEtBI80G34s8dKE1Ue2vftcSMz8mIQRRXTXZpS0bLhnL6ey-FcKtnC0AwwWi+DAiAA */
   id: 'chatMachine',
   initial: 'notStarted',
   context: {
@@ -139,21 +140,6 @@ export const chatMachine = setup({
             },
             STREAM_DONE: {
               target: 'typing',
-            },
-          },
-        },
-        receiveStreaming: {
-          description: '接受 GPT SSE 数据',
-          on: {
-            STREAM_DELTA: {
-              actions: 'appendAssistantDelta',
-            },
-            STREAM_DONE: {
-              target: 'typing',
-            },
-            STREAM_ERROR: {
-              target: 'typing',
-              actions: 'setError',
             },
           },
         },

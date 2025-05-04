@@ -1,115 +1,169 @@
-import { createMachine, assign } from 'xstate'
+import { assign, setup, fromCallback } from 'xstate'
 import type { Message } from './types'
 
-export const chatMachine = createMachine(
-  {
-    /** @xstate-layout N4IgpgJg5mDOIC5QGMAWBDALgWXWglgHZgB0hA9pgMqboBOmkAxFQCoCCASqwPoDCACXasA2gAYAuolAAHcrHyZ85QtJAAPRAHYATCQCsAFkMA2AMxaAHIbEBOfQEYT+gDQgAnogC0Os7ZJa+mImgSaWlrY6jiYAvjFuaFi4BMQkiZhKhFAkmO4yRFBMAJIAcgAKAKq8guwlAOIAouJSSCByCkoqapoIXg5iYiQOljpiOpG2ZibjwW6eCLaGJCGWY2aOhrbWDrZxCRg4eKhEpOmZ2bn5WSwVAELYRaKSau2KyqqtPTpaSya2YqYxmIglYHHNvCESID1loTHCxA59NM9iB0sljqkzgUSLAwIQIAVsHBYOgYEwICpSEQAG7kADWpwO6JOaQO5xxeIJWSJsBJMAQNPIyCw72azRe8jeXU+iH0SOW02MDjMOgisK04IQ1mW1iiZjMTnGI0sKLRRxZWKyHPxhOJpLATDAdDo5DoJBkABssAAzV0AW1ZSXNmLZ2NxNu5dv5guFnUIYuerVece6iBslgCZnCzkMOj1hg1HkQiLMJARjmG+giAOVJviqKZwcZWHZdDAyDA+GpBRobfQfvJlJIgoZgcOKWbGWxbY7XZ7mD7foFhFpsdFknFSclKZlCFVDgC-2sYn1U0Cmp0fzLSMClgN-yzOlNjYnY9b7c73ayvbA-cdztdd0vUwX06ADM1X0tbIZ0-edF2XVcRRUBMWlkbd3lTPdvhISItFsZwRgsIIs01GwTACPNVmiJF9TiesKAgOA1AgjEwAlDoMN3Pp8KGEYxgmKYZhMTUvBsPRfC0QIATELRgUsfRnyDV8KGoWgGEgdipQ+UAej6Qx9EzLR+kiEwHFMYYRINJYtAsXQ-lsSTLCsMxFPHVi3wKTSdx07wzIzYZRnGcZBP+YSi16REDKRAsdjzYJTHw1zmRDFtsUuTytw46UfIQfotBIeSzEMfViv6Qx+ksETIWhPDLDMn5DHCJKmw8q1wy5KAeT5NjMq0zDTHIyT9XGZUzLzYqqozeKjLwkwEWCfQn3rFiLVDK0YLnb8F1-P0vM4nLFvIoIcyMmx9JI8KdGMa8QisaxbAev5YjooA */
-    id: 'chatMachine',
-    initial: 'notStarted',
-    context: {
-      // Define any context variables here
-      errorMessage: undefined as string | undefined,
-      messages: [] as Message[],
+export const chatMachine = setup({
+  types: {
+    context: {} as {
+      errorMessage?: string
+      messages: Message[]
+      input: string
+    },
+    events: {} as
+      | { type: 'START_CHAT' }
+      | { type: 'INPUT_CHANGE'; value: string }
+      | { type: 'SUBMIT' }
+      | { type: 'STREAM_DELTA'; delta: string }
+      | { type: 'STREAM_DONE' }
+      | { type: 'STREAM_ERROR'; error: string }
+      | { type: 'RESET_CHAT' },
+  },
+  actions: {
+    inputChange: assign({
+      input: ({ event }) => event.value,
+    }),
+    submit: assign({
+      messages: ({ context }) => {
+        const newMessage = {
+          role: 'user',
+          content: context.input,
+        }
+        return [...context.messages, newMessage]
+      },
+    }),
+    resetInput: assign({
       input: '',
-    },
-    schemas: {
-      // Define any schemas here
-      events: {} as
-        | { type: 'START_CHAT' }
-        | { type: 'INPUT_CHANGE'; value: string }
-        | { type: 'SUBMIT' }
-        | { type: 'TEXT_PART_RECEIVED'; part: string },
-      services: {} as {
-        sendMessage: {
-          data: void
+    }),
+    startAssistantMessage: assign({
+      messages: ({ context }) => [
+        ...context.messages,
+        { role: 'assistant', content: '' },
+      ],
+    }),
+    appendAssistantDelta: assign({
+      messages: ({ context, event }) => {
+        const lastIndex = context.messages.length - 1
+        const lastMessage = context.messages[lastIndex]
+        if (!lastMessage || lastMessage.role !== 'assistant')
+          return context.messages
+        const updated = {
+          ...lastMessage,
+          content: lastMessage.content + event.delta,
         }
-        receiveStream: {
-          data: void
+        return [...context.messages.slice(0, lastIndex), updated]
+      },
+    }),
+    setError: assign({
+      errorMessage: ({ event }) => event.error,
+    }),
+    clearError: assign({
+      errorMessage: undefined,
+    }),
+    resetChat: assign({
+      input: '',
+      messages: () => [],
+      errorMessage: undefined,
+    }),
+  },
+  actors: {
+    streamGPT: fromCallback(({ sendBack: send }) => {
+      const chunks = [
+        '你好',
+        '，',
+        '我是',
+        ' ChatGPT。',
+        '你想问我什么？',
+        '我会尽力回答你。',
+      ]
+      let i = 0
+
+      const interval = setInterval(() => {
+        if (i < chunks.length) {
+          send({ type: 'STREAM_DELTA', delta: chunks[i] })
+          i++
+        } else {
+          clearInterval(interval)
+          send({ type: 'STREAM_DONE' })
         }
+      }, 400)
+
+      return () => clearInterval(interval) // stop 函数
+    }),
+  },
+}).createMachine({
+  id: 'chatMachine',
+  initial: 'notStarted',
+  context: {
+    errorMessage: undefined,
+    messages: [],
+    input: '',
+  },
+  states: {
+    notStarted: {
+      description: '聊天还没有开始，这时候一般是欢迎页面',
+      on: {
+        START_CHAT: 'chatting',
+      },
+      after: {
+        500: { target: 'chatting' },
       },
     },
-    states: {
-      notStarted: {
-        on: {
-          START_CHAT: 'chatting',
-        },
-      },
-      chatting: {
-        states: {
-          typing: {
-            on: {
-              INPUT_CHANGE: {
-                actions: 'assignInputToContext',
-              },
-              SUBMIT: {
-                target: 'sendingMessage',
-                actions: 'appendUserMessage',
-              },
+    chatting: {
+      initial: 'typing',
+      description: '聊天中',
+      states: {
+        typing: {
+          description: '用户输入消息',
+          on: {
+            INPUT_CHANGE: {
+              actions: 'inputChange',
             },
-          },
-          sendingMessage: {
-            invoke: {
-              src: 'sendMessage',
-              onDone: [
-                {
-                  target: 'receivingStream',
-                },
-              ],
-              onError: [
-                {
-                  target: 'typing',
-                },
-              ],
-            },
-          },
-          receivingStream: {
-            invoke: {
-              src: 'receiveStream',
-              onDone: {
-                target: 'typing',
-                reenter: true,
-              },
-              onError: [
-                {
-                  target: 'typing',
-                },
-              ],
+            SUBMIT: {
+              actions: ['submit', 'resetInput'],
+              target: 'startStreaming',
             },
           },
         },
-        initial: 'typing',
+        startStreaming: {
+          description: '开始流式传输',
+          entry: 'startAssistantMessage',
+          invoke: {
+            src: 'streamGPT',
+          },
+          on: {
+            STREAM_DELTA: {
+              actions: 'appendAssistantDelta',
+            },
+            STREAM_ERROR: {
+              target: 'typing',
+              actions: 'setError',
+            },
+            STREAM_DONE: {
+              target: 'typing',
+            },
+          },
+        },
+        receiveStreaming: {
+          description: '接受 GPT SSE 数据',
+          on: {
+            STREAM_DELTA: {
+              actions: 'appendAssistantDelta',
+            },
+            STREAM_DONE: {
+              target: 'typing',
+            },
+            STREAM_ERROR: {
+              target: 'typing',
+              actions: 'setError',
+            },
+          },
+        },
       },
     },
   },
-  {
-    guards: {},
-    actions: {
-      assignErrorToContext: assign((context, event) => {
-        return {
-          errorMessage: (event.data as Error).message,
-        }
-      }),
-      assignInputToContext: assign((context, event) => {
-        return {
-          input: context.event.value,
-        }
-      }),
-      appendUserMessage: assign(({ context }) => {
-        return {
-          messages: [
-            ...context.messages,
-            { role: 'user', content: context.input },
-          ],
-          input: '', // 发送后清空输入
-        }
-      }),
-      appendMessagePart: assign((context, event) => ({
-        messages: context.messages.map((m, index, arr) =>
-          index === arr.length - 1
-            ? { ...m, content: m.content + event.part }
-            : m
-        ),
-      })),
+  on: {
+    RESET_CHAT: {
+      target: '.notStarted',
+      actions: 'resetChat',
     },
-  }
-)
+  },
+})

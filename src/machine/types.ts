@@ -1,5 +1,5 @@
 export type CoreMessage = {
-  role: 'system' | 'user' | 'tool'
+  role: 'system' | 'user' | 'assistant'
   content: string
 }
 
